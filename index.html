@@ -37,17 +37,17 @@
                     <span class="text-blue-600"><i class="fas fa-box-open"></i></span>
                     Order Parfum 📦
                 </h1>
-                <p class="text-slate-500 mt-1 text-sm md:text-base">Aplikasi pengelola pesanan sinkron Sheets</p>
+                <p class="text-slate-500 mt-1 text-sm md:text-base">Aplikasi pengelola pesanan tersinkronisasi</p>
             </div>
             <div class="flex flex-wrap gap-2">
                 <button id="installBtn" class="hidden bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 transition flex items-center gap-2 text-sm font-bold shadow-lg shadow-blue-100">
                     <i class="fas fa-download"></i> Install App
                 </button>
+                <button onclick="fetchDataDariSheet()" class="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl hover:bg-blue-100 transition flex items-center gap-2 text-sm font-bold">
+                    <i class="fas fa-sync-alt" id="syncIcon"></i> Sinkron Data
+                </button>
                 <button onclick="exportData()" class="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl hover:bg-slate-50 transition flex items-center gap-2 text-sm font-medium shadow-sm">
                     <i class="fas fa-download"></i> Backup
-                </button>
-                <button onclick="document.getElementById('fileImport').click()" class="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl hover:bg-slate-50 transition flex items-center gap-2 text-sm font-medium shadow-sm">
-                    <i class="fas fa-upload"></i> Import
                 </button>
                 <input type="file" id="fileImport" class="hidden" onchange="importData(event)">
             </div>
@@ -154,6 +154,28 @@
             setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
         }
 
+        // Fungsi Sinkronisasi: Ambil data terbaru dari Google Sheets
+        async function fetchDataDariSheet() {
+            const syncIcon = document.getElementById('syncIcon');
+            syncIcon.classList.add('spinner');
+            
+            try {
+                const response = await fetch(SCRIPT_URL + '?action=read');
+                const result = await response.json();
+                if (result && Array.isArray(result)) {
+                    dataOrder = result;
+                    localStorage.setItem('dataParfum', JSON.stringify(dataOrder));
+                    renderTabel();
+                    showToast('Data berhasil disinkronkan!');
+                }
+            } catch (error) {
+                console.error(error);
+                showToast('Gagal ambil data dari Sheets', true);
+            } finally {
+                syncIcon.classList.remove('spinner');
+            }
+        }
+
         function renderTabel() {
             const tbody = document.querySelector('#tabelOrder tbody');
             const emptyState = document.getElementById('emptyState');
@@ -210,6 +232,7 @@
             btn.innerHTML = `<i class="fas fa-circle-notch spinner"></i> Mengirim...`;
 
             try {
+                // Mengirim ke Google Script
                 await fetch(SCRIPT_URL, {
                     method: 'POST',
                     mode: 'no-cors',
@@ -217,6 +240,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(order)
                 });
+                
+                // Tambahkan ke data lokal
                 dataOrder.unshift(order);
                 renderTabel();
                 showToast('Berhasil Simpan & Kirim!');
@@ -232,6 +257,7 @@
         }
 
         function toggleSelesai(i) { dataOrder[i].selesai = !dataOrder[i].selesai; renderTabel(); }
+        
         function hapusOrder(i) { 
             const row = dataOrder[i];
             const confirmBox = document.createElement('div');
@@ -298,7 +324,6 @@
             }
         });
 
-        // Register dummy service worker to trigger installability
         if ('serviceWorker' in navigator) {
             const swCode = `self.addEventListener('fetch', function(event) {});`;
             const blob = new Blob([swCode], {type: 'text/javascript'});
@@ -308,6 +333,9 @@
 
         document.getElementById('tgl').valueAsDate = new Date();
         renderTabel();
+
+        // Otomatis sinkron saat pertama kali dibuka jika ada koneksi
+        fetchDataDariSheet();
     </script>
 </body>
 </html>
